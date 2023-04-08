@@ -57,14 +57,15 @@ class PostPagesTests(TestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.author = User.objects.create_user(username='Author')
+        cls.group = Group.objects.create(
+            title='cats',
+            slug='group_slug',
+            description='описание'
+        )
         cls.post = Post.objects.create(
             text='чонитьтам',
             author=cls.author,
-            group=Group.objects.create(
-                title='cats',
-                slug='slug1',
-                description='описание'
-            )
+            group=cls.group,
         )
 
     def setUp(self):
@@ -82,7 +83,7 @@ class PostPagesTests(TestCase):
         """Шаблон group_list сформирован с правильным контекстом."""
         response = self.authorized_client.get(reverse(
             'posts:group_list',
-            kwargs={'slug': 'slug1'}
+            kwargs={'slug': self.group.slug}
         ))
         _object = response.context['page_obj'][0]
         text = _object.text

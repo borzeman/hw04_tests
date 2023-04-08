@@ -4,7 +4,6 @@ import tempfile
 from django.test import Client, override_settings, TestCase
 from django.urls import reverse
 from django.conf import settings
-from django.core.files.uploadedfile import SimpleUploadedFile
 
 from posts.models import Post, Group, User
 
@@ -24,24 +23,8 @@ class PostCreateFormTests(TestCase):
             slug='slug',
             description='Описание тестовой группы')
 
-        small_gif = (
-            b'\x47\x49\x46\x38\x39\x61\x02\x00'
-            b'\x01\x00\x80\x00\x00\x00\x00\x00'
-            b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
-            b'\x00\x00\x00\x2C\x00\x00\x00\x00'
-            b'\x02\x00\x01\x00\x00\x02\x02\x0C'
-            b'\x0A\x00\x3B'
-        )
-
-        uploaded = SimpleUploadedFile(
-            name='small.gif',
-            content=small_gif,
-            content_type='image/gif'
-        )
-
         cls.post_text_form = {'text': 'Измененный тект',
                               'group': cls.group.pk,
-                              'image': uploaded,
                               }
 
     @classmethod
@@ -55,7 +38,6 @@ class PostCreateFormTests(TestCase):
 
     def test_create_post(self):
         """Валидная форма создает новую запись в базе данных."""
-        posts_count = Post.objects.count()
         response = self.authorized_client.post(
             reverse('posts:post_create'),
             data=self.post_text_form,
@@ -63,10 +45,17 @@ class PostCreateFormTests(TestCase):
 
         self.assertRedirects(response, reverse(
             'posts:profile', kwargs={'username': self.user.username}))
-        self.assertEqual(Post.objects.count(), posts_count + 1)
+        post = Post.objects.first()
+        self.assertEqual(post.text, self.post_text_form['text'])
+        self.assertEqual(post.group.pk, self.post_text_form['group'])
+        self.assertEqual(post.author.username, self.user.username)
 
     def test_post_edit(self):
         """При изменении валидной формы изменяется запись в базе данных."""
+        self.post_without_group = Post.objects.create(
+            text='текст поста без группы',
+            author=self.user
+        )
         self.post = Post.objects.create(
             text='Тестовый текст',
             author=self.user,
@@ -88,5 +77,42 @@ class PostCreateFormTests(TestCase):
         )
         self.assertEqual(Post.objects.count(), posts_count)
         post = Post.objects.get(id=self.post.id)
-        self.assertNotEqual(post.text, self.post_text_form['text'])
-        self.assertEqual(post.group.pk, self.post_text_form['group'])
+        self.assertEqual(post.text, form_data['text'])
+        self.assertIsNone(self.post_without_group.group)
+
+    def test_edit_other_users_post(self):
+        """При попытке изменить пост другого пользователя, пост не меняется."""
+        user1 = User.objects.create_user(username='user1')
+        user2 = User.objects.create_user(username='user2')
+        client1 = Client()
+        client1.force_login(user1)
+        post = Post.objects.create(
+            text='Тестовый текст',
+            author=user1,
+            group=self.group
+        )
+        client2 = Client()
+        client2.force_login(user2)
+        form_data = {
+            'text': 'Новый текст поста',
+            'group': self.group.id
+        }
+        response = client2.post(
+            reverse('posts:post_edit', kwargs={'post_id': post.id}),
+            data=form_data,
+            follow=True
+        )
+        self.assertEqual(response.status_code, 403)
+        post.refresh_from_db()
+        self.assertNotEqual(post.text, form_data['text'])
+
+    def test_create_post_unauthorized(self):
+        """При создании поста неавторизованным юзером пост не создается"""
+        unauthorized_client = Client()
+        response = unauthorized_client.post(
+            reverse('posts:post_create'),
+            data=self.post_text_form,
+            follow=True)
+        self.assertEqual(Post.objects.count(), 0)
+        self.assertRedirects(response, reverse(
+            'login') + '?next=' + reverse('posts:post_create'))

@@ -25,7 +25,12 @@ SECRET_KEY = '_72(xi-odbvgl6a*)hmm@w*nsrw3_u00@w*v-f-zs-6umth9+7'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['testserver', '127.0.0.1']
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    '[::1]',
+    'testserver',
+]
 
 
 # Application definition
@@ -40,7 +45,8 @@ INSTALLED_APPS = [
     'posts',
     'users.apps.UsersConfig',
     'core.apps.CoreConfig',
-    'about'
+    'about',
+    'sorl.thumbnail',
 ]
 
 MIDDLEWARE = [
