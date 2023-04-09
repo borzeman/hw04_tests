@@ -78,17 +78,14 @@ class PostCreateFormTests(TestCase):
         self.assertEqual(Post.objects.count(), posts_count)
         post = Post.objects.get(id=self.post.id)
         self.assertEqual(post.text, form_data['text'])
-        self.assertIsNone(self.post_without_group.group)
+        self.assertEqual(post.group.id, form_data['group'])
 
     def test_edit_other_users_post(self):
         """При попытке изменить пост другого пользователя, пост не меняется."""
-        user1 = User.objects.create_user(username='user1')
         user2 = User.objects.create_user(username='user2')
-        client1 = Client()
-        client1.force_login(user1)
         post = Post.objects.create(
             text='Тестовый текст',
-            author=user1,
+            author=self.user,
             group=self.group
         )
         client2 = Client()
